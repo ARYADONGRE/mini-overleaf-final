@@ -1,97 +1,144 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mini-Overleaf Clone</title>
+    <title>Mini Overleaf + Images</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
     <style>
-        body { margin: 0; display: flex; height: 100vh; font-family: sans-serif; }
-        #editor-container { width: 50%; border-right: 1px solid #ccc; display: flex; flex-direction: column; }
-        #preview-container { width: 50%; background: #f0f0f0; }
-        #toolbar { padding: 10px; background: #333; color: white; display: flex; justify-content: space-between; align-items: center;}
-        #compile-btn { padding: 8px 15px; background: #4CAF50; color: white; border: none; cursor: pointer; font-weight: bold; }
-        #compile-btn:hover { background: #45a049; }
+        body { display: flex; height: 100vh; margin: 0; font-family: sans-serif; }
+        
+        /* Layout: Sidebar | Editor | Preview */
+        #sidebar { width: 200px; background: #f4f4f4; border-right: 1px solid #ccc; padding: 10px; display: flex; flex-direction: column; }
+        #editor-area { flex-grow: 1; display: flex; flex-direction: column; border-right: 1px solid #ccc; }
+        #preview-area { width: 45%; background: #555; }
+        
+        /* Sidebar Elements */
+        #file-list { margin-top: 10px; font-size: 13px; color: #333; }
+        .file-item { padding: 4px; border-bottom: 1px solid #ddd; }
+        input[type="file"] { display: none; }
+        .btn { padding: 8px; border: none; cursor: pointer; border-radius: 4px; width: 100%; margin-bottom: 5px; color: white;}
+        .btn-blue { background: #007bff; }
+        .btn-green { background: #28a745; }
+        .btn:disabled { background: #ccc; }
+
+        #toolbar { padding: 10px; background: #2c3e50; color: white; display: flex; justify-content: space-between; }
+        .CodeMirror { flex-grow: 1; font-size: 14px; }
         iframe { width: 100%; height: 100%; border: none; }
-        .CodeMirror { height: 100%; font-size: 14px; }
-        #status { font-size: 12px; margin-right: 10px; color: #ffeb3b; }
+        
+        #error-box { background: #e74c3c; color: white; padding: 10px; display: none; font-size: 12px;}
+        .error-line { background-color: #ffcccc !important; }
     </style>
 </head>
 <body>
 
-    <div id="editor-container">
-        <div id="toolbar">
-            <span>LaTeX Editor</span>
-            <div>
-                <span id="status"></span>
-                <button id="compile-btn" onclick="compile()">Compile to PDF</button>
-            </div>
+    <div id="sidebar">
+        <strong>Project Files</strong>
+        <hr style="width:100%; border-top:1px solid #ccc;">
+        <button class="btn btn-blue" onclick="document.getElementById('img-upload').click()">+ Upload Image</button>
+        <input type="file" id="img-upload" accept="image/*" onchange="uploadImage()">
+        <div id="file-list">
+            <div class="file-item">document.tex</div>
         </div>
-        <textarea id="code-editor">
+    </div>
+
+    <div id="editor-area">
+        <div id="toolbar">
+            <span>Editor</span>
+            <button class="btn btn-green" style="width: auto;" id="compile-btn" onclick="compile()">Recompile</button>
+        </div>
+        <div id="error-box"></div>
+        <textarea id="code">
 \documentclass{article}
-\title{Hello World}
-\author{Your Name}
-\date{\today}
+\usepackage{graphicx} % Required for images
+
 \begin{document}
-\maketitle
-\section{Introduction}
-This is a PDF compiled on your own Python server!
-\begin{equation}
-E = mc^2
-\end{equation}
+
+\section{Image Test}
+Here is an image I uploaded:
+
+% Make sure to upload 'myimage.png' first!
+% \includegraphics[width=0.5\textwidth]{myimage.png}
+
 \end{document}
         </textarea>
     </div>
 
-    <div id="preview-container">
-        <iframe id="pdf-preview" title="PDF Preview"></iframe>
+    <div id="preview-area">
+        <iframe id="preview"></iframe>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/stex/stex.min.js"></script>
 
     <script>
-        // Initialize CodeMirror Editor
-        var editor = CodeMirror.fromTextArea(document.getElementById("code-editor"), {
-            mode: "stex",
-            lineNumbers: true,
-            theme: "default"
+        // 1. Generate a Session ID (Random string)
+        const sessionId = Math.random().toString(36).substring(2, 15);
+        console.log("Session ID:", sessionId);
+
+        var editor = CodeMirror.fromTextArea(document.getElementById("code"), {
+            lineNumbers: true, mode: "stex", lineWrapping: true
         });
 
-        async function compile() {
-            const btn = document.getElementById('compile-btn');
-            const status = document.getElementById('status');
-            const preview = document.getElementById('pdf-preview');
-            
-            btn.disabled = true;
-            btn.innerText = "Compiling...";
-            status.innerText = "";
+        // 2. Upload Logic
+        async function uploadImage() {
+            const fileInput = document.getElementById('img-upload');
+            const file = fileInput.files[0];
+            if (!file) return;
 
-            const latexCode = editor.getValue();
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('session_id', sessionId);
 
             try {
-                const response = await fetch('/compile', {
+                const res = await fetch('/upload', { method: 'POST', body: formData });
+                const data = await res.json();
+                
+                if (res.ok) {
+                    // Add to sidebar list
+                    const div = document.createElement('div');
+                    div.className = 'file-item';
+                    div.innerText = data.filename;
+                    document.getElementById('file-list').appendChild(div);
+                    alert("Uploaded: " + data.filename);
+                } else {
+                    alert("Upload Failed");
+                }
+            } catch (e) { alert("Network Error"); }
+        }
+
+        // 3. Compile Logic
+        var lastErrorLine = null;
+        async function compile() {
+            const btn = document.getElementById("compile-btn");
+            const errBox = document.getElementById("error-box");
+            
+            btn.innerText = "Compiling...";
+            btn.disabled = true;
+            errBox.style.display = "none";
+            if (lastErrorLine !== null) editor.removeLineClass(lastErrorLine, "background", "error-line");
+
+            try {
+                const res = await fetch('/compile', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ code: latexCode })
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ code: editor.getValue(), session_id: sessionId })
                 });
 
-                if (response.ok) {
-                    const blob = await response.blob();
-                    const url = URL.createObjectURL(blob);
-                    preview.src = url;
-                    status.innerText = "Success!";
+                if (res.ok) {
+                    const blob = await res.blob();
+                    document.getElementById('preview').src = URL.createObjectURL(blob);
+                    btn.innerText = "Recompile";
                 } else {
-                    const errorData = await response.json();
-                    alert("Error:\n" + (errorData.details || errorData.error));
-                    status.innerText = "Error";
+                    const data = await res.json();
+                    btn.innerText = "Failed";
+                    errBox.innerText = `Line ${data.line}: ${data.message}`;
+                    errBox.style.display = "block";
+                    if (data.line > 0) {
+                        lastErrorLine = data.line - 1;
+                        editor.addLineClass(lastErrorLine, "background", "error-line");
+                    }
                 }
-            } catch (err) {
-                alert("Network error: " + err.message);
-            } finally {
-                btn.disabled = false;
-                btn.innerText = "Compile to PDF";
-            }
+            } catch (e) { alert("Error connecting to server"); } 
+            finally { btn.disabled = false; }
         }
     </script>
 </body>
