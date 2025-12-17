@@ -1,7 +1,7 @@
 FROM python:3.9-slim
 
-# Install the "Academic Super-Set" of LaTeX packages to prevent missing file errors
-# Includes: IEEE, Science, Math, Fonts, Bibliography, and Generic tools (like ulem)
+# Install the "Academic Super-Set" of LaTeX packages
+# FIXED: Replaced 'texlive-generic-recommended' with 'texlive-plain-generic'
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     texlive-latex-base \
@@ -11,7 +11,7 @@ RUN apt-get update && \
     texlive-bibtex-extra \
     texlive-publishers \
     texlive-science \
-    texlive-generic-recommended \
+    texlive-plain-generic \
     texlive-lang-english \
     latexmk \
     && rm -rf /var/lib/apt/lists/*
