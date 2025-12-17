@@ -1,6 +1,7 @@
 FROM python:3.9-slim
 
-# Install LaTeX with IEEE and Math support
+# Install LaTeX, Latexmk, IEEE support, and Math packages
+# The 'latexmk' line below fixes your specific error
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     texlive-latex-base \
@@ -8,6 +9,7 @@ RUN apt-get update && \
     texlive-latex-extra \
     texlive-publishers \
     texlive-science \
+    latexmk \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

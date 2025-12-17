@@ -1,65 +1,80 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Mini Overleaf + Images</title>
+    <title>Mini Overleaf Pro</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
     <style>
         body { display: flex; height: 100vh; margin: 0; font-family: sans-serif; }
         
-        /* Layout: Sidebar | Editor | Preview */
-        #sidebar { width: 200px; background: #f4f4f4; border-right: 1px solid #ccc; padding: 10px; display: flex; flex-direction: column; }
-        #editor-area { flex-grow: 1; display: flex; flex-direction: column; border-right: 1px solid #ccc; }
+        /* Sidebar Styling */
+        #sidebar { width: 220px; background: #f8f9fa; border-right: 1px solid #ddd; padding: 15px; display: flex; flex-direction: column; }
+        #file-list { margin-top: 15px; font-size: 13px; color: #333; overflow-y: auto; flex-grow: 1; }
+        .file-item { padding: 6px; border-bottom: 1px solid #eee; display: flex; align-items: center; }
+        .file-icon { margin-right: 8px; }
+        
+        /* Main Areas */
+        #editor-area { flex-grow: 1; display: flex; flex-direction: column; }
         #preview-area { width: 45%; background: #555; }
         
-        /* Sidebar Elements */
-        #file-list { margin-top: 10px; font-size: 13px; color: #333; }
-        .file-item { padding: 4px; border-bottom: 1px solid #ddd; }
-        input[type="file"] { display: none; }
-        .btn { padding: 8px; border: none; cursor: pointer; border-radius: 4px; width: 100%; margin-bottom: 5px; color: white;}
+        /* Buttons & Toolbar */
+        .btn { padding: 10px; border: none; cursor: pointer; border-radius: 4px; width: 100%; margin-bottom: 8px; color: white; font-weight: bold; }
         .btn-blue { background: #007bff; }
-        .btn-green { background: #28a745; }
-        .btn:disabled { background: #ccc; }
+        .btn-blue:hover { background: #0069d9; }
+        .btn-green { background: #28a745; width: auto; padding: 8px 20px;}
+        .btn-green:hover { background: #218838; }
+        input[type="file"] { display: none; }
 
-        #toolbar { padding: 10px; background: #2c3e50; color: white; display: flex; justify-content: space-between; }
-        .CodeMirror { flex-grow: 1; font-size: 14px; }
-        iframe { width: 100%; height: 100%; border: none; }
+        #toolbar { padding: 10px; background: #343a40; color: white; display: flex; justify-content: space-between; align-items: center; }
         
-        #error-box { background: #e74c3c; color: white; padding: 10px; display: none; font-size: 12px;}
-        .error-line { background-color: #ffcccc !important; }
+        /* Editor & Error Box */
+        .CodeMirror { flex-grow: 1; font-size: 14px; }
+        iframe { width: 100%; height: 100%; border: none; background: white; }
+        #error-box { background: #dc3545; color: white; padding: 10px; display: none; font-size: 13px; }
+        .error-line { background-color: #f8d7da !important; }
     </style>
 </head>
 <body>
 
     <div id="sidebar">
-        <strong>Project Files</strong>
-        <hr style="width:100%; border-top:1px solid #ccc;">
-        <button class="btn btn-blue" onclick="document.getElementById('img-upload').click()">+ Upload Image</button>
-        <input type="file" id="img-upload" accept="image/*" onchange="uploadImage()">
+        <h3 style="margin-top:0">Project Files</h3>
+        <button class="btn btn-blue" onclick="document.getElementById('img-upload').click()">+ Upload Files</button>
+        <input type="file" id="img-upload" multiple onchange="uploadFiles()">
+        
         <div id="file-list">
-            <div class="file-item">document.tex</div>
+            <div style="color: #666; font-style: italic;">Loading files...</div>
+        </div>
+        
+        <div style="font-size: 10px; color: #999; margin-top: auto;">
+            Session ID: <span id="sess-id-disp"></span>
         </div>
     </div>
 
     <div id="editor-area">
         <div id="toolbar">
-            <span>Editor</span>
-            <button class="btn btn-green" style="width: auto;" id="compile-btn" onclick="compile()">Recompile</button>
+            <span>LaTeX Editor</span>
+            <button class="btn btn-green" id="compile-btn" onclick="compile()">Recompile PDF</button>
         </div>
         <div id="error-box"></div>
         <textarea id="code">
 \documentclass{article}
-\usepackage{graphicx} % Required for images
+\usepackage{graphicx}
+\title{My Image Project}
+\author{Arya Dongre}
 
 \begin{document}
+\maketitle
 
-\section{Image Test}
-Here is an image I uploaded:
+\section{Introduction}
+This is a test document on my Render server.
 
-% Make sure to upload 'myimage.png' first!
-% \includegraphics[width=0.5\textwidth]{myimage.png}
+\section{Images}
+% STEP 1: Click '+ Upload Files' on the left.
+% STEP 2: Upload a file (e.g., 'cat.png').
+% STEP 3: Uncomment the line below:
 
-\end{document}
-        </textarea>
+% \includegraphics[width=5cm]{cat.png}
+
+\end{document}</textarea>
     </div>
 
     <div id="preview-area">
@@ -70,42 +85,67 @@ Here is an image I uploaded:
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/stex/stex.min.js"></script>
 
     <script>
-        // 1. Generate a Session ID (Random string)
-        const sessionId = Math.random().toString(36).substring(2, 15);
-        console.log("Session ID:", sessionId);
+        // 1. SESSION MANAGEMENT (Fixes the "missing image on refresh" bug)
+        let sessionId = localStorage.getItem('miniOverleafSession');
+        if (!sessionId) {
+            sessionId = Math.random().toString(36).substring(2, 15);
+            localStorage.setItem('miniOverleafSession', sessionId);
+        }
+        document.getElementById('sess-id-disp').innerText = sessionId;
 
         var editor = CodeMirror.fromTextArea(document.getElementById("code"), {
             lineNumbers: true, mode: "stex", lineWrapping: true
         });
 
-        // 2. Upload Logic
-        async function uploadImage() {
-            const fileInput = document.getElementById('img-upload');
-            const file = fileInput.files[0];
-            if (!file) return;
+        // 2. FETCH FILE LIST
+        async function refreshFileList() {
+            try {
+                const res = await fetch(`/files?session_id=${sessionId}`);
+                const files = await res.json();
+                const list = document.getElementById('file-list');
+                list.innerHTML = "";
+                
+                if (files.length === 0) list.innerHTML = "<div style='color:#999; padding:5px;'>No files uploaded</div>";
+                
+                files.forEach(f => {
+                    const item = document.createElement('div');
+                    item.className = 'file-item';
+                    const icon = f.endsWith('.tex') ? '📄' : '🖼️';
+                    item.innerHTML = `<span class="file-icon">${icon}</span> ${f}`;
+                    list.appendChild(item);
+                });
+            } catch (e) { console.error("Error fetching files"); }
+        }
+
+        // 3. UPLOAD FILES
+        async function uploadFiles() {
+            const input = document.getElementById('img-upload');
+            if (input.files.length === 0) return;
 
             const formData = new FormData();
-            formData.append('file', file);
             formData.append('session_id', sessionId);
+            for (let i = 0; i < input.files.length; i++) {
+                formData.append('file', input.files[i]);
+            }
+
+            const btn = document.querySelector('.btn-blue');
+            const originalText = btn.innerText;
+            btn.innerText = "Uploading...";
+            btn.disabled = true;
 
             try {
                 const res = await fetch('/upload', { method: 'POST', body: formData });
-                const data = await res.json();
-                
-                if (res.ok) {
-                    // Add to sidebar list
-                    const div = document.createElement('div');
-                    div.className = 'file-item';
-                    div.innerText = data.filename;
-                    document.getElementById('file-list').appendChild(div);
-                    alert("Uploaded: " + data.filename);
-                } else {
-                    alert("Upload Failed");
-                }
+                if (res.ok) refreshFileList();
+                else alert("Upload failed");
             } catch (e) { alert("Network Error"); }
+            finally {
+                btn.innerText = originalText;
+                btn.disabled = false;
+                input.value = "";
+            }
         }
 
-        // 3. Compile Logic
+        // 4. COMPILE PDF
         var lastErrorLine = null;
         async function compile() {
             const btn = document.getElementById("compile-btn");
@@ -126,7 +166,8 @@ Here is an image I uploaded:
                 if (res.ok) {
                     const blob = await res.blob();
                     document.getElementById('preview').src = URL.createObjectURL(blob);
-                    btn.innerText = "Recompile";
+                    btn.innerText = "Success!";
+                    setTimeout(() => btn.innerText = "Recompile PDF", 2000);
                 } else {
                     const data = await res.json();
                     btn.innerText = "Failed";
@@ -135,11 +176,15 @@ Here is an image I uploaded:
                     if (data.line > 0) {
                         lastErrorLine = data.line - 1;
                         editor.addLineClass(lastErrorLine, "background", "error-line");
+                        editor.scrollIntoView({line: lastErrorLine, ch: 0});
                     }
+                    setTimeout(() => btn.innerText = "Recompile PDF", 2000);
                 }
-            } catch (e) { alert("Error connecting to server"); } 
+            } catch (e) { alert("Server connection error"); } 
             finally { btn.disabled = false; }
         }
+
+        refreshFileList();
     </script>
 </body>
 </html>
