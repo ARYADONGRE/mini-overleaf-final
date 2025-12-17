@@ -1,34 +1,39 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Mini Overleaf Pro</title>
+    <title>Mini Overleaf Ultimate</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
     <style>
-        body { display: flex; height: 100vh; margin: 0; font-family: sans-serif; }
+        body { display: flex; height: 100vh; margin: 0; font-family: sans-serif; overflow: hidden; }
         
-        /* Sidebar Styling */
-        #sidebar { width: 220px; background: #f8f9fa; border-right: 1px solid #ddd; padding: 15px; display: flex; flex-direction: column; }
-        #file-list { margin-top: 15px; font-size: 13px; color: #333; overflow-y: auto; flex-grow: 1; }
-        .file-item { padding: 6px; border-bottom: 1px solid #eee; display: flex; align-items: center; }
-        .file-icon { margin-right: 8px; }
+        /* SIDEBAR */
+        #sidebar { width: 250px; background: #f8f9fa; border-right: 1px solid #ddd; padding: 10px; display: flex; flex-direction: column; flex-shrink: 0; }
         
-        /* Main Areas */
-        #editor-area { flex-grow: 1; display: flex; flex-direction: column; }
-        #preview-area { width: 45%; background: #555; }
-        
-        /* Buttons & Toolbar */
-        .btn { padding: 10px; border: none; cursor: pointer; border-radius: 4px; width: 100%; margin-bottom: 8px; color: white; font-weight: bold; }
+        .btn { padding: 5px 10px; border: none; cursor: pointer; border-radius: 4px; color: white; font-size: 12px; margin-bottom: 5px; width: 100%; }
         .btn-blue { background: #007bff; }
-        .btn-blue:hover { background: #0069d9; }
-        .btn-green { background: #28a745; width: auto; padding: 8px 20px;}
-        .btn-green:hover { background: #218838; }
+        .btn-gray { background: #6c757d; }
+        .btn-red { background: #dc3545; width: auto; padding: 2px 6px; font-size: 10px; margin-left: auto; cursor: pointer;}
+        
+        select { width: 100%; padding: 5px; margin-bottom: 5px; border-radius: 4px; border: 1px solid #ccc; }
         input[type="file"] { display: none; }
 
-        #toolbar { padding: 10px; background: #343a40; color: white; display: flex; justify-content: space-between; align-items: center; }
+        #file-list { margin-top: 10px; font-size: 13px; color: #333; overflow-y: auto; flex-grow: 1; border-top: 1px solid #ccc; padding-top: 5px;}
+        .file-item { padding: 4px; border-bottom: 1px solid #eee; display: flex; align-items: center; }
+        .file-item:hover { background: #e2e6ea; }
+        .file-icon { margin-right: 5px; width: 15px; text-align: center;}
+
+        /* RESIZER */
+        .gutter { width: 8px; cursor: col-resize; background: #e0e0e0; border-left: 1px solid #ccc; border-right: 1px solid #ccc; flex-shrink: 0; }
+        .gutter:hover { background: #007bff; }
+
+        /* EDITOR & PREVIEW */
+        #editor-container { flex-grow: 1; display: flex; flex-direction: column; width: 50%; min-width: 200px; }
+        #preview-container { flex-grow: 1; display: flex; flex-direction: column; width: 50%; min-width: 200px; background: #555; }
         
-        /* Editor & Error Box */
+        #toolbar { padding: 8px; background: #343a40; color: white; display: flex; justify-content: space-between; align-items: center; }
         .CodeMirror { flex-grow: 1; font-size: 14px; }
-        iframe { width: 100%; height: 100%; border: none; background: white; }
+        iframe { width: 100%; height: 100%; border: none; background: white; flex-grow: 1; }
+        
         #error-box { background: #dc3545; color: white; padding: 10px; display: none; font-size: 13px; }
         .error-line { background-color: #f8d7da !important; }
     </style>
@@ -36,48 +41,51 @@
 <body>
 
     <div id="sidebar">
-        <h3 style="margin-top:0">Project Files</h3>
-        <button class="btn btn-blue" onclick="document.getElementById('img-upload').click()">+ Upload Files</button>
+        <strong>Files</strong>
+        <div style="display: flex; gap: 5px; margin-top: 5px;">
+            <button class="btn btn-blue" onclick="document.getElementById('img-upload').click()">Upload</button>
+            <button class="btn btn-gray" onclick="createFolder()">+ Folder</button>
+        </div>
+        
         <input type="file" id="img-upload" multiple onchange="uploadFiles()">
         
-        <div id="file-list">
-            <div style="color: #666; font-style: italic;">Loading files...</div>
-        </div>
-        
-        <div style="font-size: 10px; color: #999; margin-top: auto;">
-            Session ID: <span id="sess-id-disp"></span>
-        </div>
+        <label style="font-size: 11px; color: #666; margin-top: 5px;">Upload into:</label>
+        <select id="folder-select">
+            <option value="">(Root)</option>
+        </select>
+
+        <div id="file-list"></div>
+        <div style="font-size: 10px; color: #999; margin-top: auto;">Session: <span id="sess-id"></span></div>
     </div>
 
-    <div id="editor-area">
+    <div id="editor-container">
         <div id="toolbar">
-            <span>LaTeX Editor</span>
-            <button class="btn btn-green" id="compile-btn" onclick="compile()">Recompile PDF</button>
+            <span>Source</span>
+            <button class="btn btn-blue" style="background: #28a745; width: auto;" id="compile-btn" onclick="compile()">Recompile</button>
         </div>
         <div id="error-box"></div>
         <textarea id="code">
 \documentclass{article}
 \usepackage{graphicx}
-\title{My Image Project}
-\author{Arya Dongre}
+\usepackage{ulem} % This package should now work!
 
 \begin{document}
-\maketitle
+\section{Final Test}
+This server now supports:
+\begin{itemize}
+    \item \textbf{Folders:} Create subfolders for assets.
+    \item \textbf{Deleting:} Remove incorrect files.
+    \item \textbf{Packages:} ulem, IEEEtran, amsmath.
+\end{itemize}
 
-\section{Introduction}
-This is a test document on my Render server.
-
-\section{Images}
-% STEP 1: Click '+ Upload Files' on the left.
-% STEP 2: Upload a file (e.g., 'cat.png').
-% STEP 3: Uncomment the line below:
-
-% \includegraphics[width=5cm]{cat.png}
+Hello \uline{underlined world}!
 
 \end{document}</textarea>
     </div>
 
-    <div id="preview-area">
+    <div class="gutter" id="gutter"></div>
+
+    <div id="preview-container">
         <iframe id="preview"></iframe>
     </div>
 
@@ -85,74 +93,116 @@ This is a test document on my Render server.
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/stex/stex.min.js"></script>
 
     <script>
-        // 1. SESSION MANAGEMENT (Fixes the "missing image on refresh" bug)
+        // 1. SESSION
         let sessionId = localStorage.getItem('miniOverleafSession');
         if (!sessionId) {
             sessionId = Math.random().toString(36).substring(2, 15);
             localStorage.setItem('miniOverleafSession', sessionId);
         }
-        document.getElementById('sess-id-disp').innerText = sessionId;
+        document.getElementById('sess-id').innerText = sessionId;
 
+        // 2. RESIZER
+        const gutter = document.getElementById('gutter');
+        const leftPanel = document.getElementById('editor-container');
+        gutter.addEventListener('mousedown', function(e) {
+            e.preventDefault();
+            document.addEventListener('mousemove', resize);
+            document.addEventListener('mouseup', stopResize);
+        });
+        function resize(e) {
+            const newWidth = e.clientX - 250; 
+            if (newWidth > 100 && newWidth < window.innerWidth - 350) {
+                leftPanel.style.width = newWidth + 'px';
+            }
+        }
+        function stopResize() {
+            document.removeEventListener('mousemove', resize);
+            document.removeEventListener('mouseup', stopResize);
+        }
+
+        // 3. EDITOR
         var editor = CodeMirror.fromTextArea(document.getElementById("code"), {
             lineNumbers: true, mode: "stex", lineWrapping: true
         });
 
-        // 2. FETCH FILE LIST
+        // 4. FILE LOGIC
         async function refreshFileList() {
             try {
                 const res = await fetch(`/files?session_id=${sessionId}`);
                 const files = await res.json();
                 const list = document.getElementById('file-list');
-                list.innerHTML = "";
+                const select = document.getElementById('folder-select');
+                const currentSelection = select.value;
                 
-                if (files.length === 0) list.innerHTML = "<div style='color:#999; padding:5px;'>No files uploaded</div>";
+                list.innerHTML = "";
+                select.innerHTML = '<option value="">(Root)</option>';
                 
                 files.forEach(f => {
-                    const item = document.createElement('div');
-                    item.className = 'file-item';
-                    const icon = f.endsWith('.tex') ? '📄' : '🖼️';
-                    item.innerHTML = `<span class="file-icon">${icon}</span> ${f}`;
-                    list.appendChild(item);
+                    const div = document.createElement('div');
+                    div.className = 'file-item';
+                    let icon = '📄';
+                    
+                    if (f.type === 'folder') {
+                        icon = '📂';
+                        const opt = document.createElement('option');
+                        opt.value = f.path;
+                        opt.innerText = f.path;
+                        select.appendChild(opt);
+                    } else if (f.path.match(/\.(png|jpg|jpeg)$/)) icon = '🖼️';
+
+                    div.innerHTML = `
+                        <span class="file-icon">${icon}</span> 
+                        <span style="flex-grow:1; font-size:12px; overflow:hidden; text-overflow:ellipsis;">${f.path}</span>
+                        <button class="btn-red" onclick="deleteItem('${f.path}')">x</button>
+                    `;
+                    list.appendChild(div);
                 });
-            } catch (e) { console.error("Error fetching files"); }
+                select.value = currentSelection;
+            } catch(e) {}
         }
 
-        // 3. UPLOAD FILES
+        async function createFolder() {
+            const name = prompt("Folder name:");
+            if (!name) return;
+            await fetch('/create_folder', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({session_id: sessionId, folder_name: name})
+            });
+            refreshFileList();
+        }
+
+        async function deleteItem(path) {
+            if (!confirm(`Delete ${path}?`)) return;
+            await fetch('/delete', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({session_id: sessionId, path: path})
+            });
+            refreshFileList();
+        }
+
         async function uploadFiles() {
             const input = document.getElementById('img-upload');
-            if (input.files.length === 0) return;
-
+            const target = document.getElementById('folder-select').value;
             const formData = new FormData();
             formData.append('session_id', sessionId);
-            for (let i = 0; i < input.files.length; i++) {
-                formData.append('file', input.files[i]);
-            }
+            formData.append('target_folder', target);
+            for (let i = 0; i < input.files.length; i++) formData.append('file', input.files[i]);
 
             const btn = document.querySelector('.btn-blue');
-            const originalText = btn.innerText;
-            btn.innerText = "Uploading...";
-            btn.disabled = true;
-
-            try {
-                const res = await fetch('/upload', { method: 'POST', body: formData });
-                if (res.ok) refreshFileList();
-                else alert("Upload failed");
-            } catch (e) { alert("Network Error"); }
-            finally {
-                btn.innerText = originalText;
-                btn.disabled = false;
-                input.value = "";
-            }
+            const txt = btn.innerText; btn.innerText = "..."; btn.disabled = true;
+            await fetch('/upload', { method: 'POST', body: formData });
+            input.value = ""; btn.innerText = txt; btn.disabled = false;
+            refreshFileList();
         }
 
-        // 4. COMPILE PDF
+        // 5. COMPILE
         var lastErrorLine = null;
         async function compile() {
             const btn = document.getElementById("compile-btn");
             const errBox = document.getElementById("error-box");
-            
-            btn.innerText = "Compiling...";
-            btn.disabled = true;
+            btn.innerText = "Compiling..."; btn.disabled = true;
             errBox.style.display = "none";
             if (lastErrorLine !== null) editor.removeLineClass(lastErrorLine, "background", "error-line");
 
@@ -166,8 +216,7 @@ This is a test document on my Render server.
                 if (res.ok) {
                     const blob = await res.blob();
                     document.getElementById('preview').src = URL.createObjectURL(blob);
-                    btn.innerText = "Success!";
-                    setTimeout(() => btn.innerText = "Recompile PDF", 2000);
+                    btn.innerText = "Recompile";
                 } else {
                     const data = await res.json();
                     btn.innerText = "Failed";
@@ -178,12 +227,10 @@ This is a test document on my Render server.
                         editor.addLineClass(lastErrorLine, "background", "error-line");
                         editor.scrollIntoView({line: lastErrorLine, ch: 0});
                     }
-                    setTimeout(() => btn.innerText = "Recompile PDF", 2000);
                 }
-            } catch (e) { alert("Server connection error"); } 
+            } catch (e) { alert("Server Error"); }
             finally { btn.disabled = false; }
         }
-
         refreshFileList();
     </script>
 </body>

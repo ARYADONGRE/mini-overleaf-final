@@ -1,14 +1,18 @@
 FROM python:3.9-slim
 
-# Install LaTeX, Latexmk, IEEE support, and Math packages
-# The 'latexmk' line below fixes your specific error
+# Install the "Academic Super-Set" of LaTeX packages to prevent missing file errors
+# Includes: IEEE, Science, Math, Fonts, Bibliography, and Generic tools (like ulem)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     texlive-latex-base \
-    texlive-fonts-recommended \
     texlive-latex-extra \
+    texlive-fonts-recommended \
+    texlive-fonts-extra \
+    texlive-bibtex-extra \
     texlive-publishers \
     texlive-science \
+    texlive-generic-recommended \
+    texlive-lang-english \
     latexmk \
     && rm -rf /var/lib/apt/lists/*
 
