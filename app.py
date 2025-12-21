@@ -11,15 +11,12 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'change-this-to-something-secret'
 
 # --- DATABASE CONFIGURATION ---
-# 1. Get the URL from Render Environment
 db_url = os.environ.get('DATABASE_URL')
 
 if db_url:
-    # 2. Fix: SQLAlchemy requires 'postgresql://', but Neon/Render often gives 'postgres://'
     if db_url.startswith("postgres://"):
         db_url = db_url.replace("postgres://", "postgresql://", 1)
 else:
-    # 3. Fallback: Use local SQLite if no cloud database is found (for testing on laptop)
     db_url = 'sqlite:///site.db'
 
 app.config['SQLALCHEMY_DATABASE_URI'] = db_url
@@ -30,8 +27,6 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-# --- FILE STORAGE ---
-# Files are stored in /tmp (Ephemeral on Render)
 BASE_DIR = '/tmp/mini-overleaf/projects'
 if not os.path.exists(BASE_DIR):
     os.makedirs(BASE_DIR)
@@ -41,7 +36,8 @@ class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(20), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
-    password = db.Column(db.String(60), nullable=False)
+    # FIX: Increased size from 60 to 255 to hold long password hashes
+    password = db.Column(db.String(255), nullable=False)
     projects = db.relationship('Project', backref='author', lazy=True)
 
 class Project(db.Model):
@@ -53,7 +49,6 @@ class Project(db.Model):
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# --- HELPER FUNCTIONS ---
 def get_project_path(project_id):
     path = os.path.join(BASE_DIR, str(project_id))
     if not os.path.exists(path):
@@ -61,7 +56,6 @@ def get_project_path(project_id):
     return path
 
 def parse_latex_log(log_content):
-    """Finds error message and line number in LaTeX logs."""
     line_pattern = re.compile(r'^l\.(\d+)', re.MULTILINE)
     error_pattern = re.compile(r'^! (.*)$', re.MULTILINE)
     line_match = line_pattern.search(log_content)
@@ -69,15 +63,17 @@ def parse_latex_log(log_content):
     return (int(line_match.group(1)) if line_match else 0, 
             error_match.group(1) if error_match else "Unknown Error")
 
-# --- EMERGENCY SETUP ROUTE (Run once to create tables) ---
+# --- RESET DATABASE ROUTE ---
+# FIX: Added db.drop_all() to remove the old 'size 60' table
 @app.route('/setup-db')
 def setup_db():
     try:
         with app.app_context():
-            db.create_all()
-        return "<h3>Database Tables Created Successfully!</h3> <a href='/register'>Click here to Register</a>"
+            db.drop_all()   # Deletes old tables with wrong schema
+            db.create_all() # Creates new tables with correct schema
+        return "<h3>Database Reset & Fixed!</h3> <a href='/register'>Click here to Register</a>"
     except Exception as e:
-        return f"<h3>Error creating tables:</h3> <p>{str(e)}</p>"
+        return f"<h3>Error:</h3> <p>{str(e)}</p>"
 
 # --- AUTH ROUTES ---
 @app.route('/')
@@ -93,7 +89,6 @@ def register():
         email = request.form.get('email')
         password = request.form.get('password')
         
-        # Check if email exists
         if User.query.filter_by(email=email).first():
             flash('Email already exists')
             return redirect(url_for('register'))
@@ -147,7 +142,6 @@ def create_project():
         new_proj = Project(name=name, author=current_user)
         db.session.add(new_proj)
         db.session.commit()
-        # Initialize folder
         get_project_path(new_proj.id)
     return redirect(url_for('dashboard'))
 
@@ -161,7 +155,6 @@ def open_project(project_id):
     path = get_project_path(project_id)
     tex_file = os.path.join(path, 'document.tex')
     
-    # Load existing code or create default
     code = ""
     if os.path.exists(tex_file):
         with open(tex_file, 'r') as f:
@@ -183,13 +176,11 @@ def list_files(project_id):
     p_dir = get_project_path(project_id)
     file_list = []
     
-    # Recursively find folders
     for root, dirs, files in os.walk(p_dir):
         for name in dirs:
             rel = os.path.relpath(os.path.join(root, name), p_dir)
             file_list.append({'path': rel, 'type': 'folder'})
             
-    # Recursively find files
     for root, dirs, files in os.walk(p_dir):
         for name in files:
             rel = os.path.relpath(os.path.join(root, name), p_dir)
@@ -223,7 +214,7 @@ def upload():
 def create_folder():
     data = request.json
     pid = data.get('project_id')
-    name = data.get('folder_name').replace('..', '') # Security check
+    name = data.get('folder_name').replace('..', '')
     
     project = Project.query.get(pid)
     if not project or project.author != current_user: return jsonify({'error': '403'}), 403
@@ -263,12 +254,10 @@ def compile_tex():
     pdf_file = os.path.join(p_dir, 'document.pdf')
     log_file = os.path.join(p_dir, 'document.log')
     
-    # Save code to file
     with open(tex_file, 'w') as f:
         f.write(code)
     
     try:
-        # Run latexmk
         subprocess.run(
             ['latexmk', '-pdf', '-interaction=nonstopmode', '-file-line-error', '-outdir=' + p_dir, tex_file],
             check=True, cwd=p_dir, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=45
@@ -276,7 +265,6 @@ def compile_tex():
         return send_file(pdf_file, mimetype='application/pdf')
 
     except subprocess.CalledProcessError:
-        # Parsing error log
         if os.path.exists(log_file):
             with open(log_file, 'r', errors='replace') as f:
                 log = f.read()
