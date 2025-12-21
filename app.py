@@ -10,13 +10,19 @@ from werkzeug.security import generate_password_hash, check_password_hash
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'change-this-to-something-secret'
 
-# --- DATABASE CONFIG ---
-# Checks for 'DATABASE_URL' (from Render/Neon). If not found, uses local SQLite.
+# --- DATABASE CONFIGURATION ---
+# 1. Get the URL from Render Environment
 db_url = os.environ.get('DATABASE_URL')
-if db_url and db_url.startswith("postgres://"):
-    db_url = db_url.replace("postgres://", "postgresql://", 1)
 
-app.config['SQLALCHEMY_DATABASE_URI'] = db_url or 'sqlite:///site.db'
+if db_url:
+    # 2. Fix: SQLAlchemy requires 'postgresql://', but Neon/Render often gives 'postgres://'
+    if db_url.startswith("postgres://"):
+        db_url = db_url.replace("postgres://", "postgresql://", 1)
+else:
+    # 3. Fallback: Use local SQLite if no cloud database is found (for testing on laptop)
+    db_url = 'sqlite:///site.db'
+
+app.config['SQLALCHEMY_DATABASE_URI'] = db_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
@@ -25,12 +31,12 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 
 # --- FILE STORAGE ---
-# Note: On Render Free Tier, files here are deleted on deploy/restart.
+# Files are stored in /tmp (Ephemeral on Render)
 BASE_DIR = '/tmp/mini-overleaf/projects'
 if not os.path.exists(BASE_DIR):
     os.makedirs(BASE_DIR)
 
-# --- MODELS ---
+# --- DATABASE MODELS ---
 class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(20), unique=True, nullable=False)
@@ -42,10 +48,6 @@ class Project(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-
-# Create tables
-with app.app_context():
-    db.create_all()
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -59,12 +61,23 @@ def get_project_path(project_id):
     return path
 
 def parse_latex_log(log_content):
+    """Finds error message and line number in LaTeX logs."""
     line_pattern = re.compile(r'^l\.(\d+)', re.MULTILINE)
     error_pattern = re.compile(r'^! (.*)$', re.MULTILINE)
     line_match = line_pattern.search(log_content)
     error_match = error_pattern.search(log_content)
     return (int(line_match.group(1)) if line_match else 0, 
             error_match.group(1) if error_match else "Unknown Error")
+
+# --- EMERGENCY SETUP ROUTE (Run once to create tables) ---
+@app.route('/setup-db')
+def setup_db():
+    try:
+        with app.app_context():
+            db.create_all()
+        return "<h3>Database Tables Created Successfully!</h3> <a href='/register'>Click here to Register</a>"
+    except Exception as e:
+        return f"<h3>Error creating tables:</h3> <p>{str(e)}</p>"
 
 # --- AUTH ROUTES ---
 @app.route('/')
@@ -80,16 +93,22 @@ def register():
         email = request.form.get('email')
         password = request.form.get('password')
         
+        # Check if email exists
         if User.query.filter_by(email=email).first():
             flash('Email already exists')
             return redirect(url_for('register'))
             
         hashed_pw = generate_password_hash(password, method='pbkdf2:sha256')
         new_user = User(username=username, email=email, password=hashed_pw)
-        db.session.add(new_user)
-        db.session.commit()
-        login_user(new_user)
-        return redirect(url_for('dashboard'))
+        
+        try:
+            db.session.add(new_user)
+            db.session.commit()
+            login_user(new_user)
+            return redirect(url_for('dashboard'))
+        except Exception as e:
+            return f"Database Error: {e}"
+
     return render_template('register.html')
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -98,10 +117,13 @@ def login():
         email = request.form.get('email')
         password = request.form.get('password')
         user = User.query.filter_by(email=email).first()
+        
         if user and check_password_hash(user.password, password):
             login_user(user)
             return redirect(url_for('dashboard'))
-        flash('Login Unsuccessful. Please check email and password')
+        else:
+            flash('Login Unsuccessful. Check email and password')
+            
     return render_template('login.html')
 
 @app.route('/logout')
@@ -110,7 +132,7 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
-# --- PROJECT ROUTES ---
+# --- PROJECT MANAGEMENT ---
 @app.route('/dashboard')
 @login_required
 def dashboard():
@@ -125,26 +147,30 @@ def create_project():
         new_proj = Project(name=name, author=current_user)
         db.session.add(new_proj)
         db.session.commit()
-        get_project_path(new_proj.id) # Init folder
+        # Initialize folder
+        get_project_path(new_proj.id)
     return redirect(url_for('dashboard'))
 
 @app.route('/project/<int:project_id>')
 @login_required
 def open_project(project_id):
     project = Project.query.get_or_404(project_id)
-    if project.author != current_user: return "Unauthorized", 403
+    if project.author != current_user:
+        return "Unauthorized", 403
     
     path = get_project_path(project_id)
     tex_file = os.path.join(path, 'document.tex')
     
-    # Load or Create default file
+    # Load existing code or create default
     code = ""
     if os.path.exists(tex_file):
-        with open(tex_file, 'r') as f: code = f.read()
+        with open(tex_file, 'r') as f:
+            code = f.read()
     else:
         code = r"\documentclass{article}" + "\n" + r"\begin{document}" + "\n" + "Hello World!\n" + r"\end{document}"
-        with open(tex_file, 'w') as f: f.write(code)
-        
+        with open(tex_file, 'w') as f:
+            f.write(code)
+            
     return render_template('editor.html', project=project, code=code)
 
 # --- FILE API ---
@@ -157,12 +183,13 @@ def list_files(project_id):
     p_dir = get_project_path(project_id)
     file_list = []
     
-    # Walk folders
+    # Recursively find folders
     for root, dirs, files in os.walk(p_dir):
         for name in dirs:
             rel = os.path.relpath(os.path.join(root, name), p_dir)
             file_list.append({'path': rel, 'type': 'folder'})
-    # Walk files
+            
+    # Recursively find files
     for root, dirs, files in os.walk(p_dir):
         for name in files:
             rel = os.path.relpath(os.path.join(root, name), p_dir)
@@ -183,7 +210,8 @@ def upload():
     if not project or project.author != current_user: return jsonify({'error': '403'}), 403
     
     save_dir = os.path.join(get_project_path(pid), target)
-    if not os.path.exists(save_dir): os.makedirs(save_dir)
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
     
     for f in files:
         safe_name = re.sub(r'[^a-zA-Z0-9_.-]', '', f.filename)
@@ -195,7 +223,7 @@ def upload():
 def create_folder():
     data = request.json
     pid = data.get('project_id')
-    name = data.get('folder_name').replace('..', '')
+    name = data.get('folder_name').replace('..', '') # Security check
     
     project = Project.query.get(pid)
     if not project or project.author != current_user: return jsonify({'error': '403'}), 403
@@ -214,8 +242,10 @@ def delete_item():
     if not project or project.author != current_user: return jsonify({'error': '403'}), 403
     
     full = os.path.join(get_project_path(pid), path)
-    if os.path.isfile(full): os.remove(full)
-    elif os.path.isdir(full): shutil.rmtree(full)
+    if os.path.isfile(full):
+        os.remove(full)
+    elif os.path.isdir(full):
+        shutil.rmtree(full)
     return jsonify({'message': 'Deleted'})
 
 @app.route('/compile', methods=['POST'])
@@ -233,22 +263,29 @@ def compile_tex():
     pdf_file = os.path.join(p_dir, 'document.pdf')
     log_file = os.path.join(p_dir, 'document.log')
     
-    with open(tex_file, 'w') as f: f.write(code)
+    # Save code to file
+    with open(tex_file, 'w') as f:
+        f.write(code)
     
     try:
+        # Run latexmk
         subprocess.run(
             ['latexmk', '-pdf', '-interaction=nonstopmode', '-file-line-error', '-outdir=' + p_dir, tex_file],
             check=True, cwd=p_dir, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=45
         )
         return send_file(pdf_file, mimetype='application/pdf')
+
     except subprocess.CalledProcessError:
+        # Parsing error log
         if os.path.exists(log_file):
-            with open(log_file, 'r', errors='replace') as f: log = f.read()
+            with open(log_file, 'r', errors='replace') as f:
+                log = f.read()
             l, m = parse_latex_log(log)
             return jsonify({'error': 'Failed', 'line': l, 'message': m}), 400
-        return jsonify({'error': 'Error', 'message': 'Unknown'}), 500
+        return jsonify({'error': 'Error', 'message': 'Unknown Compilation Error'}), 500
+        
     except subprocess.TimeoutExpired:
-        return jsonify({'error': 'Timeout', 'message': 'Time limit exceeded'}), 504
+        return jsonify({'error': 'Timeout', 'message': 'Compilation took too long'}), 504
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
