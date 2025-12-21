@@ -1,39 +1,26 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Mini Overleaf Ultimate</title>
+    <title>Editor - {{ project.name }}</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
     <style>
         body { display: flex; height: 100vh; margin: 0; font-family: sans-serif; overflow: hidden; }
-        
-        /* SIDEBAR */
-        #sidebar { width: 250px; background: #f8f9fa; border-right: 1px solid #ddd; padding: 10px; display: flex; flex-direction: column; flex-shrink: 0; }
-        
-        .btn { padding: 5px 10px; border: none; cursor: pointer; border-radius: 4px; color: white; font-size: 12px; margin-bottom: 5px; width: 100%; }
-        .btn-blue { background: #007bff; }
-        .btn-gray { background: #6c757d; }
-        .btn-red { background: #dc3545; width: auto; padding: 2px 6px; font-size: 10px; margin-left: auto; cursor: pointer;}
-        
-        select { width: 100%; padding: 5px; margin-bottom: 5px; border-radius: 4px; border: 1px solid #ccc; }
+        #sidebar { width: 260px; background: #f0f2f5; border-right: 1px solid #ccc; padding: 12px; display: flex; flex-direction: column; flex-shrink: 0; }
+        .section-label { font-size: 11px; font-weight: bold; color: #555; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;}
+        .btn { padding: 8px; border: none; cursor: pointer; border-radius: 4px; color: white; font-size: 13px; width: 100%; margin-bottom: 8px; font-weight: 500;}
+        .btn-blue { background: #007bff; } .btn-gray { background: #6c757d; } .btn-red { background: #dc3545; width: auto; padding: 2px 6px; font-size: 10px; margin-left: auto; cursor: pointer;}
+        select { width: 100%; padding: 6px; margin-bottom: 10px; border-radius: 4px; border: 1px solid #ccc; background: white;}
         input[type="file"] { display: none; }
-
-        #file-list { margin-top: 10px; font-size: 13px; color: #333; overflow-y: auto; flex-grow: 1; border-top: 1px solid #ccc; padding-top: 5px;}
-        .file-item { padding: 4px; border-bottom: 1px solid #eee; display: flex; align-items: center; }
-        .file-item:hover { background: #e2e6ea; }
-        .file-icon { margin-right: 5px; width: 15px; text-align: center;}
-
-        /* RESIZER */
+        #file-list { margin-top: 10px; font-size: 13px; color: #333; overflow-y: auto; flex-grow: 1; border-top: 1px solid #ccc; padding-top: 5px; background: white; border-radius: 4px;}
+        .file-item { padding: 6px 8px; border-bottom: 1px solid #f0f0f0; display: flex; align-items: center; }
+        .file-item:hover { background: #eef2ff; }
+        .file-icon { margin-right: 8px; width: 16px; text-align: center;}
         .gutter { width: 8px; cursor: col-resize; background: #e0e0e0; border-left: 1px solid #ccc; border-right: 1px solid #ccc; flex-shrink: 0; }
-        .gutter:hover { background: #007bff; }
-
-        /* EDITOR & PREVIEW */
         #editor-container { flex-grow: 1; display: flex; flex-direction: column; width: 50%; min-width: 200px; }
         #preview-container { flex-grow: 1; display: flex; flex-direction: column; width: 50%; min-width: 200px; background: #555; }
-        
-        #toolbar { padding: 8px; background: #343a40; color: white; display: flex; justify-content: space-between; align-items: center; }
+        #toolbar { padding: 10px; background: #2c3e50; color: white; display: flex; justify-content: space-between; align-items: center; }
         .CodeMirror { flex-grow: 1; font-size: 14px; }
         iframe { width: 100%; height: 100%; border: none; background: white; flex-grow: 1; }
-        
         #error-box { background: #dc3545; color: white; padding: 10px; display: none; font-size: 13px; }
         .error-line { background-color: #f8d7da !important; }
     </style>
@@ -41,67 +28,39 @@
 <body>
 
     <div id="sidebar">
-        <strong>Files</strong>
-        <div style="display: flex; gap: 5px; margin-top: 5px;">
-            <button class="btn btn-blue" onclick="document.getElementById('img-upload').click()">Upload</button>
-            <button class="btn btn-gray" onclick="createFolder()">+ Folder</button>
-        </div>
-        
-        <input type="file" id="img-upload" multiple onchange="uploadFiles()">
-        
-        <label style="font-size: 11px; color: #666; margin-top: 5px;">Upload into:</label>
-        <select id="folder-select">
-            <option value="">(Root)</option>
-        </select>
+        <a href="/dashboard" style="margin-bottom:15px; display:block; color:#007bff; text-decoration:none;">&larr; Back to Dashboard</a>
+        <div class="section-label">1. Destination Folder</div>
+        <select id="folder-select"><option value="">(Root)</option></select>
 
+        <div class="section-label">2. Actions</div>
+        <div style="display: flex; gap: 5px;">
+            <button class="btn btn-gray" onclick="createFolder()">+ Folder</button>
+            <button class="btn btn-blue" onclick="document.getElementById('img-upload').click()">Upload</button>
+        </div>
+        <input type="file" id="img-upload" multiple onchange="uploadFiles()">
+
+        <div class="section-label" style="margin-top: 10px;">{{ project.name }}</div>
         <div id="file-list"></div>
-        <div style="font-size: 10px; color: #999; margin-top: auto;">Session: <span id="sess-id"></span></div>
     </div>
 
     <div id="editor-container">
         <div id="toolbar">
-            <span>Source</span>
-            <button class="btn btn-blue" style="background: #28a745; width: auto;" id="compile-btn" onclick="compile()">Recompile</button>
+            <span>Editor</span>
+            <button class="btn btn-blue" style="background: #28a745; width: auto; margin-bottom:0;" id="compile-btn" onclick="compile()">Recompile</button>
         </div>
         <div id="error-box"></div>
-        <textarea id="code">
-\documentclass{article}
-\usepackage{graphicx}
-\usepackage{ulem} % This package should now work!
-
-\begin{document}
-\section{Final Test}
-This server now supports:
-\begin{itemize}
-    \item \textbf{Folders:} Create subfolders for assets.
-    \item \textbf{Deleting:} Remove incorrect files.
-    \item \textbf{Packages:} ulem, IEEEtran, amsmath.
-\end{itemize}
-
-Hello \uline{underlined world}!
-
-\end{document}</textarea>
+        <textarea id="code">{{ code }}</textarea>
     </div>
-
     <div class="gutter" id="gutter"></div>
-
-    <div id="preview-container">
-        <iframe id="preview"></iframe>
-    </div>
+    <div id="preview-container"><iframe id="preview"></iframe></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/stex/stex.min.js"></script>
 
     <script>
-        // 1. SESSION
-        let sessionId = localStorage.getItem('miniOverleafSession');
-        if (!sessionId) {
-            sessionId = Math.random().toString(36).substring(2, 15);
-            localStorage.setItem('miniOverleafSession', sessionId);
-        }
-        document.getElementById('sess-id').innerText = sessionId;
+        const projectId = {{ project.id }}; 
 
-        // 2. RESIZER
+        // Resizer Logic
         const gutter = document.getElementById('gutter');
         const leftPanel = document.getElementById('editor-container');
         gutter.addEventListener('mousedown', function(e) {
@@ -110,25 +69,21 @@ Hello \uline{underlined world}!
             document.addEventListener('mouseup', stopResize);
         });
         function resize(e) {
-            const newWidth = e.clientX - 250; 
-            if (newWidth > 100 && newWidth < window.innerWidth - 350) {
-                leftPanel.style.width = newWidth + 'px';
-            }
+            const newWidth = e.clientX - 260; 
+            if (newWidth > 100 && newWidth < window.innerWidth - 300) leftPanel.style.width = newWidth + 'px';
         }
         function stopResize() {
             document.removeEventListener('mousemove', resize);
             document.removeEventListener('mouseup', stopResize);
         }
 
-        // 3. EDITOR
         var editor = CodeMirror.fromTextArea(document.getElementById("code"), {
             lineNumbers: true, mode: "stex", lineWrapping: true
         });
 
-        // 4. FILE LOGIC
         async function refreshFileList() {
             try {
-                const res = await fetch(`/files?session_id=${sessionId}`);
+                const res = await fetch(`/files/${projectId}`);
                 const files = await res.json();
                 const list = document.getElementById('file-list');
                 const select = document.getElementById('folder-select');
@@ -141,20 +96,14 @@ Hello \uline{underlined world}!
                     const div = document.createElement('div');
                     div.className = 'file-item';
                     let icon = '📄';
-                    
                     if (f.type === 'folder') {
                         icon = '📂';
                         const opt = document.createElement('option');
-                        opt.value = f.path;
-                        opt.innerText = f.path;
+                        opt.value = f.path; opt.innerText = f.path;
                         select.appendChild(opt);
                     } else if (f.path.match(/\.(png|jpg|jpeg)$/)) icon = '🖼️';
 
-                    div.innerHTML = `
-                        <span class="file-icon">${icon}</span> 
-                        <span style="flex-grow:1; font-size:12px; overflow:hidden; text-overflow:ellipsis;">${f.path}</span>
-                        <button class="btn-red" onclick="deleteItem('${f.path}')">x</button>
-                    `;
+                    div.innerHTML = `<span class="file-icon">${icon}</span> <span style="flex-grow:1;">${f.path}</span> <button class="btn-red" onclick="deleteItem('${f.path}')">x</button>`;
                     list.appendChild(div);
                 });
                 select.value = currentSelection;
@@ -167,7 +116,7 @@ Hello \uline{underlined world}!
             await fetch('/create_folder', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({session_id: sessionId, folder_name: name})
+                body: JSON.stringify({project_id: projectId, folder_name: name})
             });
             refreshFileList();
         }
@@ -177,7 +126,7 @@ Hello \uline{underlined world}!
             await fetch('/delete', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({session_id: sessionId, path: path})
+                body: JSON.stringify({project_id: projectId, path: path})
             });
             refreshFileList();
         }
@@ -186,7 +135,7 @@ Hello \uline{underlined world}!
             const input = document.getElementById('img-upload');
             const target = document.getElementById('folder-select').value;
             const formData = new FormData();
-            formData.append('session_id', sessionId);
+            formData.append('project_id', projectId);
             formData.append('target_folder', target);
             for (let i = 0; i < input.files.length; i++) formData.append('file', input.files[i]);
 
@@ -197,20 +146,17 @@ Hello \uline{underlined world}!
             refreshFileList();
         }
 
-        // 5. COMPILE
-        var lastErrorLine = null;
         async function compile() {
             const btn = document.getElementById("compile-btn");
             const errBox = document.getElementById("error-box");
             btn.innerText = "Compiling..."; btn.disabled = true;
             errBox.style.display = "none";
-            if (lastErrorLine !== null) editor.removeLineClass(lastErrorLine, "background", "error-line");
 
             try {
                 const res = await fetch('/compile', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ code: editor.getValue(), session_id: sessionId })
+                    body: JSON.stringify({ code: editor.getValue(), project_id: projectId })
                 });
 
                 if (res.ok) {
@@ -222,11 +168,6 @@ Hello \uline{underlined world}!
                     btn.innerText = "Failed";
                     errBox.innerText = `Line ${data.line}: ${data.message}`;
                     errBox.style.display = "block";
-                    if (data.line > 0) {
-                        lastErrorLine = data.line - 1;
-                        editor.addLineClass(lastErrorLine, "background", "error-line");
-                        editor.scrollIntoView({line: lastErrorLine, ch: 0});
-                    }
                 }
             } catch (e) { alert("Server Error"); }
             finally { btn.disabled = false; }

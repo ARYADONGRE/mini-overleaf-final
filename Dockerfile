@@ -1,7 +1,6 @@
 FROM python:3.9-slim
 
 # Install the "Academic Super-Set" of LaTeX packages
-# FIXED: Replaced 'texlive-generic-recommended' with 'texlive-plain-generic'
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     texlive-latex-base \
