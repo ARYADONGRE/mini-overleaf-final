@@ -69,7 +69,7 @@ def parse_latex_log(log_content):
 def setup_db():
     try:
         with app.app_context():
-            db.drop_all()   # Deletes old tables with wrong schema
+            # db.drop_all()   # Deletes old tables with wrong schema
             db.create_all() # Creates new tables with correct schema
         return "<h3>Database Reset & Fixed!</h3> <a href='/register'>Click here to Register</a>"
     except Exception as e:
